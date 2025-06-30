@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
+import 'package:intl/intl.dart';
 
 // Asegúrate de tener un archivo `.env` en la raíz de tu proyecto con estas variables:
 // SUPABASE_URL=https://ppyowdavsbkhvxzvaviy.supabase.co
@@ -13,12 +16,20 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // Inicializar zonas horarias
+  tz.initializeTimeZones();
+
   try {
     await dotenv.load(fileName: ".env");
     print("✅ Archivo .env cargado correctamente");
 
     final supabaseUrl = dotenv.env['SUPABASE_URL'];
     final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+    final timezoneName = dotenv.env['TZ'] ?? 'America/Punta_Arenas';
+
+    // Configurar la zona horaria de Punta Arenas
+    tz.setLocalLocation(tz.getLocation(timezoneName));
+    print("🌎 Zona horaria configurada: $timezoneName");
 
     if (supabaseUrl == null || supabaseAnonKey == null) {
       print("❌ Error: Variables de entorno no encontradas");
@@ -537,6 +548,23 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
     );
   }
 
+  /// Obtiene la fecha/hora actual en zona horaria de Punta Arenas
+  tz.TZDateTime _getCurrentPuntaArenasTime() {
+    final location = tz.getLocation('America/Punta_Arenas');
+    return tz.TZDateTime.now(location);
+  }
+
+  /// Convierte un timestamp UTC a zona horaria de Punta Arenas
+  tz.TZDateTime _convertToLocalTime(DateTime utcTime) {
+    final location = tz.getLocation('America/Punta_Arenas');
+    return tz.TZDateTime.from(utcTime, location);
+  }
+
+  /// Convierte zona horaria local a UTC para enviar a Supabase
+  DateTime _convertToUTC(tz.TZDateTime localTime) {
+    return localTime.toUtc();
+  }
+
   Future<void> _handleInput(String rawValue) async {
     final raw = rawValue.trim();
     final code = raw.replaceAll(RegExp(r'^;|\?\$'), '');
@@ -627,16 +655,24 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         // REGISTRAR ENTRADA A DESCANSO
         print("🚪 PROCESANDO ENTRADA A DESCANSO");
         try {
+          final horaLocalPuntaArenas = _getCurrentPuntaArenasTime();
+          final horaUTC = _convertToUTC(horaLocalPuntaArenas);
+
+          print(
+            "🕐 Hora local (Punta Arenas): ${DateFormat('dd/MM/yyyy HH:mm:ss').format(horaLocalPuntaArenas)}",
+          );
+          print("🕐 Hora UTC para BD: ${horaUTC.toIso8601String()}");
+
           await supabase.from('descansos').insert({
             'usuario_id': userId,
-            'inicio': DateTime.now().toUtc().toIso8601String(),
+            'inicio': horaUTC.toIso8601String(),
             'tipo': 'Pendiente',
           });
 
           if (mounted) {
             _showResponseMessage(
               context,
-              '🟢 $userName - Entrada a descanso registrada',
+              '🟢 $userName - Entrada a descanso registrada a las ${DateFormat('HH:mm').format(horaLocalPuntaArenas)}',
               isSuccess: true,
             );
           }
@@ -702,30 +738,35 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
       print("   📅 Fecha limpia: $fechaLimpia");
 
       final inicio = DateTime.parse(fechaLimpia);
-      final fin = DateTime.now().toUtc();
-      final duracionMinutos = (fin.difference(inicio).inMinutes).clamp(1, 9999);
+      final inicioLocalTime = _convertToLocalTime(inicio);
+      final finLocalTime = _getCurrentPuntaArenasTime();
+      final fin = _convertToUTC(finLocalTime);
+
+      final duracionMinutos =
+          (finLocalTime.difference(inicioLocalTime).inMinutes).clamp(1, 9999);
       final tipo = duracionMinutos >= 30 ? 'COMIDA' : 'DESCANSO';
 
-      print("   ⏰ Inicio: ${inicio.toIso8601String()}");
-      print("   ⏰ Fin: ${fin.toIso8601String()}");
+      print("   ⏰ Inicio UTC: ${inicio.toIso8601String()}");
+      print(
+        "   ⏰ Inicio Local: ${DateFormat('dd/MM/yyyy HH:mm:ss').format(inicioLocalTime)}",
+      );
+      print(
+        "   ⏰ Fin Local: ${DateFormat('dd/MM/yyyy HH:mm:ss').format(finLocalTime)}",
+      );
+      print("   ⏰ Fin UTC: ${fin.toIso8601String()}");
       print("   ⏱️ Duración: $duracionMinutos min → $tipo");
 
       // Preparar datos para tiempos_descanso
       final tiempoData = {
         'usuario_id': usuarioId,
         'tipo': tipo,
-        'fecha':
-            inicio.toIso8601String().split('T')[0], // Solo fecha YYYY-MM-DD
-        'inicio':
-            inicio
-                .toIso8601String()
-                .split('T')[1]
-                .split('.')[0], // Solo tiempo HH:MM:SS
-        'fin':
-            fin
-                .toIso8601String()
-                .split('T')[1]
-                .split('.')[0], // Solo tiempo HH:MM:SS
+        'fecha': DateFormat(
+          'yyyy-MM-dd',
+        ).format(inicioLocalTime), // Fecha local
+        'inicio': DateFormat(
+          'HH:mm:ss',
+        ).format(inicioLocalTime), // Hora local de inicio
+        'fin': DateFormat('HH:mm:ss').format(finLocalTime), // Hora local de fin
         'duracion_minutos': duracionMinutos,
       };
 
