@@ -74,3 +74,76 @@ Para verificar la corrección:
 4. Verificar que la duración en BD sea ~10 minutos (no 1 minuto)
 
 La aplicación ahora debería calcular y registrar correctamente la duración real de los descansos.
+
+## NUEVA PROPUESTA: Simplificación usando hora del dispositivo
+
+Dado que:
+- El dispositivo estará fijo en Punta Arenas
+- Será configurado por la empresa con zona horaria correcta
+- Está protegido con clave para evitar cambios
+
+**Podemos simplificar drásticamente el código:**
+
+### Cambios propuestos:
+
+#### 1. Eliminar dependencias complejas:
+```dart
+// REMOVER:
+import 'package:timezone/data/latest.dart' as tz;
+import 'package:timezone/timezone.dart' as tz;
+
+// MANTENER solo:
+import 'package:intl/intl.dart'; // Para formatear fechas
+```
+
+#### 2. Simplificar funciones de tiempo:
+```dart
+// ANTES (complejo):
+tz.TZDateTime _getCurrentPuntaArenasTime() {
+  final location = tz.getLocation('America/Santiago');
+  return tz.TZDateTime.now(location);
+}
+
+// DESPUÉS (simple):
+DateTime _getCurrentTime() {
+  return DateTime.now(); // Hora del dispositivo
+}
+```
+
+#### 3. Simplificar registro de entrada:
+```dart
+// ANTES:
+final horaLocalPuntaArenas = _getCurrentPuntaArenasTime();
+final horaUTC = _convertToUTC(horaLocalPuntaArenas);
+
+// DESPUÉS:
+final horaLocal = DateTime.now();
+final horaUTC = horaLocal.toUtc();
+```
+
+#### 4. Simplificar cálculo de duración:
+```dart
+// ANTES:
+final inicioLocalTime = _convertToLocalTime(inicio);
+final finLocalTime = _getCurrentPuntaArenasTime();
+final duracionMinutos = finLocalTime.difference(inicioLocalTime).inMinutes;
+
+// DESPUÉS:
+final inicioLocal = DateTime.parse(fechaLimpia).toLocal();
+final finLocal = DateTime.now();
+final duracionMinutos = finLocal.difference(inicioLocal).inMinutes;
+```
+
+### Beneficios de la simplificación:
+- ✅ **Menos código** (reducir ~200 líneas)
+- ✅ **Menos dependencias** (remover timezone package)
+- ✅ **Más rápido** (no conversiones complejas)
+- ✅ **Más fácil de mantener**
+- ✅ **Menos puntos de fallo**
+
+### Riesgos mitigados:
+- ❌ ~~Dispositivos mal configurados~~ → **Controlado por empresa**
+- ❌ ~~Múltiples zonas horarias~~ → **Dispositivo fijo**
+- ❌ ~~Cambios no autorizados~~ → **Protegido con clave**
+
+**¿Procedo con la simplificación del código?**
