@@ -145,7 +145,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
   List<Map<String, dynamic>> _personalEnDescanso = [];
   Timer? _refreshTimer;
   Timer? _clockTimer;
-  String _currentTime = '';
+  String _currentTime = DateFormat('HH:mm:ss').format(DateTime.now());
 
   @override
   void initState() {
@@ -177,9 +177,11 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
   }
 
   void _updateCurrentTime() {
-    setState(() {
-      _currentTime = DateFormat('HH:mm:ss').format(DateTime.now());
-    });
+    if (mounted) {
+      setState(() {
+        _currentTime = DateFormat('HH:mm:ss').format(DateTime.now());
+      });
+    }
   }
 
   // SIMPLIFICADO: Solo obtener hora actual del dispositivo
