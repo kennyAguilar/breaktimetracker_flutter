@@ -903,9 +903,9 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
 
     // Calcular padding responsivo mejorado
     double horizontalPadding = 12.0;
-    if (isSmallMobile)
+    if (isSmallMobile) {
       horizontalPadding = 8.0;
-    else if (isMobile)
+    } else if (isMobile)
       horizontalPadding = 16.0;
     else if (isTablet)
       horizontalPadding = screenSize.width * 0.08;
@@ -916,9 +916,9 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
 
     // Calcular ancho máximo del contenido
     double maxWidth = double.infinity;
-    if (isSmallMobile)
+    if (isSmallMobile) {
       maxWidth = screenSize.width - (horizontalPadding * 2);
-    else if (isMobile)
+    } else if (isMobile)
       maxWidth = 500;
     else if (isTablet)
       maxWidth = 700;
