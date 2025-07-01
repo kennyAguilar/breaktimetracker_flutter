@@ -12,6 +12,8 @@ import 'package:intl/intl.dart';
 // SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBweW93ZGF2c2JraHZ4enZhdml5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA5MTU4NjMsImV4cCI6MjA2NjQ5MTg2M30.ZFfAvT5icazQ1yh_JFYbQ-xbMunPJ8Q4Y47SpWWID2s
 // SECRET_KEY=SAAffKwZoAs0Qlwr
 // TZ=America/Santiago
+// DB_TIMEZONE=America/Sao_Paulo (servidor en São Paulo)
+// CLIENT_TIMEZONE=America/Santiago (Punta Arenas usa mismo huso horario que Santiago)
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,12 +27,15 @@ void main() async {
 
     final supabaseUrl = dotenv.env['SUPABASE_URL'];
     final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+    final clientTimezone = dotenv.env['CLIENT_TIMEZONE'] ?? 'America/Santiago';
+    final dbTimezone = dotenv.env['DB_TIMEZONE'] ?? 'America/Sao_Paulo';
 
-    // Configurar la zona horaria de Chile (Santiago es la zona oficial)
-    // Nota: America/Punta_Arenas no existe, usamos America/Santiago
+    // Configurar la zona horaria de Punta Arenas (usa Santiago)
+    // Nota: El servidor BD está en São Paulo, pero mostramos hora de Punta Arenas
     try {
-      tz.setLocalLocation(tz.getLocation('America/Santiago'));
-      print("🌎 Zona horaria configurada: America/Santiago (Chile)");
+      tz.setLocalLocation(tz.getLocation(clientTimezone));
+      print("🌎 Zona horaria CLIENTE configurada: $clientTimezone (Punta Arenas)");
+      print("🌍 Zona horaria SERVIDOR BD: $dbTimezone (São Paulo)");
     } catch (e) {
       // Si falla, usar UTC como respaldo
       tz.setLocalLocation(tz.getLocation('UTC'));
@@ -558,21 +563,32 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
     );
   }
 
-  /// Obtiene la fecha/hora actual en zona horaria de Chile
+  /// Obtiene la fecha/hora actual en zona horaria de Punta Arenas (Chile)
   tz.TZDateTime _getCurrentPuntaArenasTime() {
+    // Punta Arenas usa la misma zona horaria que Santiago
     final location = tz.getLocation('America/Santiago');
     return tz.TZDateTime.now(location);
   }
 
-  /// Convierte un timestamp UTC a zona horaria de Chile
+  /// Convierte un timestamp UTC a zona horaria de Punta Arenas
   tz.TZDateTime _convertToLocalTime(DateTime utcTime) {
+    // Convertir de UTC a hora de Punta Arenas (usando Santiago)
     final location = tz.getLocation('America/Santiago');
     return tz.TZDateTime.from(utcTime, location);
   }
 
-  /// Convierte zona horaria local a UTC para enviar a Supabase
+  /// Convierte zona horaria de Punta Arenas a UTC para enviar a Supabase
   DateTime _convertToUTC(tz.TZDateTime localTime) {
     return localTime.toUtc();
+  }
+
+  /// Convierte hora de São Paulo (servidor BD) a Punta Arenas para mostrar al usuario
+  tz.TZDateTime _convertFromSaoPauloToPuntaArenas(DateTime saoPauloTime) {
+    // Convertir de São Paulo a UTC, luego a Punta Arenas
+    final saoPauloLocation = tz.getLocation('America/Sao_Paulo');
+    final saoPauloTZ = tz.TZDateTime.from(saoPauloTime, saoPauloLocation);
+    final utcTime = saoPauloTZ.toUtc();
+    return _convertToLocalTime(utcTime);
   }
 
   Future<void> _handleInput(String rawValue) async {
@@ -682,7 +698,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
           if (mounted) {
             _showResponseMessage(
               context,
-              '🟢 $userName - Entrada a descanso registrada a las ${DateFormat('HH:mm').format(horaLocalPuntaArenas)}',
+              '🟢 $userName - Entrada a descanso registrada a las ${DateFormat('HH:mm').format(horaLocalPuntaArenas)} (Punta Arenas)',
               isSuccess: true,
             );
           }
@@ -758,10 +774,10 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
 
       print("   ⏰ Inicio UTC: ${inicio.toIso8601String()}");
       print(
-        "   ⏰ Inicio Local: ${DateFormat('dd/MM/yyyy HH:mm:ss').format(inicioLocalTime)}",
+        "   ⏰ Inicio Local (Punta Arenas): ${DateFormat('dd/MM/yyyy HH:mm:ss').format(inicioLocalTime)}",
       );
       print(
-        "   ⏰ Fin Local: ${DateFormat('dd/MM/yyyy HH:mm:ss').format(finLocalTime)}",
+        "   ⏰ Fin Local (Punta Arenas): ${DateFormat('dd/MM/yyyy HH:mm:ss').format(finLocalTime)}",
       );
       print("   ⏰ Fin UTC: ${fin.toIso8601String()}");
       print("   ⏱️ Duración: $duracionMinutos min → $tipo");
