@@ -40,7 +40,9 @@ void main() async {
     if (supabaseUrl == null || supabaseAnonKey == null) {
       print("❌ Error: Variables de entorno no encontradas");
       print("SUPABASE_URL: ${supabaseUrl ?? 'NO ENCONTRADA'}");
-      print("SUPABASE_ANON_KEY: ${supabaseAnonKey != null ? 'ENCONTRADA' : 'NO ENCONTRADA'}");
+      print(
+        "SUPABASE_ANON_KEY: ${supabaseAnonKey != null ? 'ENCONTRADA' : 'NO ENCONTRADA'}",
+      );
     } else {
       print("✅ Inicializando Supabase...");
       print("URL: $supabaseUrl");
@@ -116,9 +118,13 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
           .eq('tipo', 'Pendiente');
 
       if (mounted) {
-        final names = (response as List)
-            .map((item) => item['usuarios']?['nombre'] as String? ?? 'Desconocido')
-            .toList();
+        final names =
+            (response as List)
+                .map(
+                  (item) =>
+                      item['usuarios']?['nombre'] as String? ?? 'Desconocido',
+                )
+                .toList();
         setState(() {
           _personalEnDescanso = names;
         });
@@ -148,7 +154,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         child: Column(
           children: [
             const SizedBox(height: 20),
-            
+
             // Título
             const Text(
               'Deslice la tarjeta (Número de Rojo)',
@@ -159,9 +165,9 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
               ),
               textAlign: TextAlign.center,
             ),
-            
+
             const SizedBox(height: 30),
-            
+
             // Input de tarjeta
             Card(
               elevation: 8,
@@ -179,7 +185,10 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                         labelStyle: TextStyle(color: Colors.grey),
                         hintText: 'Esperando tarjeta...',
                         hintStyle: TextStyle(color: Colors.grey),
-                        prefixIcon: Icon(Icons.credit_card, color: Colors.amber),
+                        prefixIcon: Icon(
+                          Icons.credit_card,
+                          color: Colors.amber,
+                        ),
                         border: OutlineInputBorder(),
                         focusedBorder: OutlineInputBorder(
                           borderSide: BorderSide(color: Colors.amber, width: 2),
@@ -187,25 +196,34 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                       ),
                       onSubmitted: _handleInput,
                     ),
-                    
+
                     const SizedBox(height: 16),
-                    
+
                     // Texto de ayuda
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         color: Colors.amber.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: Colors.amber.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: const Row(
                         children: [
-                          Icon(Icons.info_outline, color: Colors.amber, size: 16),
+                          Icon(
+                            Icons.info_outline,
+                            color: Colors.amber,
+                            size: 16,
+                          ),
                           SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Sin tarjeta: escriba su código (KA22, HP30, VS26, CB29...)',
-                              style: TextStyle(color: Colors.amber, fontSize: 12),
+                              style: TextStyle(
+                                color: Colors.amber,
+                                fontSize: 12,
+                              ),
                             ),
                           ),
                         ],
@@ -215,34 +233,40 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 30),
-            
+
             // Indicador de procesamiento
             if (_processing) ...[
               const CircularProgressIndicator(color: Colors.amber),
               const SizedBox(height: 16),
-              const Text('Procesando...', style: TextStyle(color: Colors.white70)),
+              const Text(
+                'Procesando...',
+                style: TextStyle(color: Colors.white70),
+              ),
               const SizedBox(height: 30),
             ],
-            
+
             // Personal en descanso
             _buildPersonalEnDescanso(),
-            
+
             const Spacer(),
-            
+
             // Botón de prueba
             ElevatedButton.icon(
               onPressed: _processing ? null : _testConnection,
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF64748B),
                 foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
               ),
               icon: const Icon(Icons.wifi_tethering),
               label: const Text('Probar Conexión'),
             ),
-            
+
             const SizedBox(height: 20),
           ],
         ),
@@ -265,7 +289,11 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                 SizedBox(width: 8),
                 Text(
                   'Personal en Descanso',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
                 ),
               ],
             ),
@@ -273,17 +301,32 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
             if (_personalEnDescanso.isEmpty)
               const Text(
                 'Nadie se encuentra en descanso actualmente.',
-                style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic),
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontStyle: FontStyle.italic,
+                ),
               )
             else
               Wrap(
                 spacing: 8.0,
                 runSpacing: 8.0,
-                children: _personalEnDescanso.map((name) => Chip(
-                  avatar: const Icon(Icons.timer_outlined, color: Colors.black87, size: 18),
-                  label: Text(name, style: const TextStyle(color: Colors.black87)),
-                  backgroundColor: Colors.amber.shade400,
-                )).toList(),
+                children:
+                    _personalEnDescanso
+                        .map(
+                          (name) => Chip(
+                            avatar: const Icon(
+                              Icons.timer_outlined,
+                              color: Colors.black87,
+                              size: 18,
+                            ),
+                            label: Text(
+                              name,
+                              style: const TextStyle(color: Colors.black87),
+                            ),
+                            backgroundColor: Colors.amber.shade400,
+                          ),
+                        )
+                        .toList(),
               ),
           ],
         ),
@@ -334,16 +377,22 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         // SALIDA DE DESCANSO
         final descansoActivo = descansosResponse.first;
         final success = await _cerrarDescanso(userId, descansoActivo);
-        
+
         if (success['success']) {
-          _showMessage('✅ $userName - Salida registrada (${success['mensaje']})', true);
+          _showMessage(
+            '✅ $userName - Salida registrada (${success['mensaje']})',
+            true,
+          );
         } else {
-          _showMessage('❌ Error al registrar salida: ${success['mensaje']}', false);
+          _showMessage(
+            '❌ Error al registrar salida: ${success['mensaje']}',
+            false,
+          );
         }
       } else {
         // ENTRADA A DESCANSO
         final now = DateTime.now().toUtc();
-        
+
         await supabase.from('descansos').insert({
           'usuario_id': userId,
           'inicio': now.toIso8601String(),
@@ -361,7 +410,10 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
     }
   }
 
-  Future<Map<String, dynamic>> _cerrarDescanso(String usuarioId, Map<String, dynamic> descansoActivo) async {
+  Future<Map<String, dynamic>> _cerrarDescanso(
+    String usuarioId,
+    Map<String, dynamic> descansoActivo,
+  ) async {
     try {
       final inicioStr = descansoActivo['inicio'] as String;
       final inicio = DateTime.parse(inicioStr);
@@ -385,15 +437,9 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
           .delete()
           .eq('id', descansoActivo['id']);
 
-      return {
-        'success': true,
-        'mensaje': '$tipo de $duracionMinutos min',
-      };
+      return {'success': true, 'mensaje': '$tipo de $duracionMinutos min'};
     } catch (e) {
-      return {
-        'success': false,
-        'mensaje': 'Error: $e',
-      };
+      return {'success': false, 'mensaje': 'Error: $e'};
     }
   }
 
@@ -416,7 +462,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
 
   void _showMessage(String message, bool isSuccess) {
     if (!mounted) return;
-    
+
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(

@@ -66,7 +66,7 @@ class _TestPageState extends State<TestPage> {
 
     try {
       final client = Supabase.instance.client;
-      
+
       // Probar consulta simple
       final response = await client
           .from('usuarios')
@@ -75,7 +75,8 @@ class _TestPageState extends State<TestPage> {
 
       setState(() {
         _loading = false;
-        _status = "✅ Conexión exitosa! Usuarios encontrados: ${response.length}";
+        _status =
+            "✅ Conexión exitosa! Usuarios encontrados: ${response.length}";
       });
     } catch (e) {
       setState(() {
@@ -88,9 +89,7 @@ class _TestPageState extends State<TestPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('BreakTime Test'),
-      ),
+      appBar: AppBar(title: const Text('BreakTime Test')),
       body: Center(
         child: Padding(
           padding: const EdgeInsets.all(20.0),
@@ -100,11 +99,7 @@ class _TestPageState extends State<TestPage> {
               if (_loading)
                 const CircularProgressIndicator()
               else
-                const Icon(
-                  Icons.check_circle,
-                  size: 64,
-                  color: Colors.green,
-                ),
+                const Icon(Icons.check_circle, size: 64, color: Colors.green),
               const SizedBox(height: 20),
               Text(
                 _status,

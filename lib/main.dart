@@ -34,7 +34,9 @@ void main() async {
     // Nota: El servidor BD está en São Paulo, pero mostramos hora de Punta Arenas
     try {
       tz.setLocalLocation(tz.getLocation(clientTimezone));
-      print("🌎 Zona horaria CLIENTE configurada: $clientTimezone (Punta Arenas)");
+      print(
+        "🌎 Zona horaria CLIENTE configurada: $clientTimezone (Punta Arenas)",
+      );
       print("🌍 Zona horaria SERVIDOR BD: $dbTimezone (São Paulo)");
     } catch (e) {
       // Si falla, usar UTC como respaldo
@@ -768,9 +770,10 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
       final finLocalTime = _getCurrentPuntaArenasTime();
       final fin = _convertToUTC(finLocalTime);
 
-      final duracionMinutos =
-          (finLocalTime.difference(inicioLocalTime).inMinutes).clamp(1, 9999);
-      final tipo = duracionMinutos >= 30 ? 'COMIDA' : 'DESCANSO';
+      final duracionMinutos = finLocalTime.difference(inicioLocalTime).inMinutes;
+      // Asegurar que la duración sea al menos 1 minuto para evitar registros de 0 minutos
+      final duracionFinal = duracionMinutos < 1 ? 1 : duracionMinutos;
+      final tipo = duracionFinal >= 30 ? 'COMIDA' : 'DESCANSO';
 
       print("   ⏰ Inicio UTC: ${inicio.toIso8601String()}");
       print(
@@ -780,7 +783,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         "   ⏰ Fin Local (Punta Arenas): ${DateFormat('dd/MM/yyyy HH:mm:ss').format(finLocalTime)}",
       );
       print("   ⏰ Fin UTC: ${fin.toIso8601String()}");
-      print("   ⏱️ Duración: $duracionMinutos min → $tipo");
+      print("   ⏱️ Duración real: $duracionMinutos min → Registrada: $duracionFinal min → $tipo");
 
       // Preparar datos para tiempos_descanso
       final tiempoData = {
@@ -793,7 +796,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
           'HH:mm:ss',
         ).format(inicioLocalTime), // Hora local de inicio
         'fin': DateFormat('HH:mm:ss').format(finLocalTime), // Hora local de fin
-        'duracion_minutos': duracionMinutos,
+        'duracion_minutos': duracionFinal,
       };
 
       // Paso 1: Insertar en tiempos_descanso
@@ -831,14 +834,15 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         }
       }
 
-      final successMsg = "Descanso cerrado: $tipo de $duracionMinutos min";
+      final successMsg = "Descanso cerrado: $tipo de $duracionFinal min (real: $duracionMinutos min)";
       print("   ✅ ÉXITO: $successMsg");
 
       return {
         'success': true,
         'mensaje': successMsg,
         'tipo': tipo,
-        'duracion_minutos': duracionMinutos,
+        'duracion_minutos': duracionFinal,
+        'duracion_real': duracionMinutos,
         'descansos_restantes': descansosRestantes,
       };
     } catch (e) {
