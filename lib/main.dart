@@ -22,7 +22,9 @@ void main() async {
     if (supabaseUrl == null || supabaseAnonKey == null) {
       print("❌ Error: Variables de entorno no encontradas");
       print("SUPABASE_URL: ${supabaseUrl ?? 'NO ENCONTRADA'}");
-      print("SUPABASE_ANON_KEY: ${supabaseAnonKey != null ? 'ENCONTRADA' : 'NO ENCONTRADA'}");
+      print(
+        "SUPABASE_ANON_KEY: ${supabaseAnonKey != null ? 'ENCONTRADA' : 'NO ENCONTRADA'}",
+      );
     } else {
       print("✅ Inicializando Supabase...");
       print("URL: $supabaseUrl");
@@ -140,16 +142,28 @@ class CardEntryExitPage extends StatefulWidget {
 class _CardEntryExitPageState extends State<CardEntryExitPage> {
   final TextEditingController _controller = TextEditingController();
   bool _processing = false;
-  List<String> _personalEnDescanso = [];
+  List<Map<String, dynamic>> _personalEnDescanso = [];
   Timer? _refreshTimer;
+  Timer? _clockTimer;
+  String _currentTime = '';
 
   @override
   void initState() {
     super.initState();
+    _updateCurrentTime();
     _fetchPersonalEnDescanso();
+
+    // Timer para actualizar personal en descanso cada minuto
     _refreshTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
       if (mounted) {
         _fetchPersonalEnDescanso();
+      }
+    });
+
+    // Timer para actualizar reloj cada segundo
+    _clockTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        _updateCurrentTime();
       }
     });
   }
@@ -158,7 +172,14 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
   void dispose() {
     _controller.dispose();
     _refreshTimer?.cancel();
+    _clockTimer?.cancel();
     super.dispose();
+  }
+
+  void _updateCurrentTime() {
+    setState(() {
+      _currentTime = DateFormat('HH:mm:ss').format(DateTime.now());
+    });
   }
 
   // SIMPLIFICADO: Solo obtener hora actual del dispositivo
@@ -175,15 +196,45 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
     try {
       final response = await Supabase.instance.client
           .from('descansos')
-          .select('usuarios(nombre)')
+          .select('id, inicio, usuarios(nombre)')
           .eq('tipo', 'Pendiente');
 
       if (mounted) {
-        final names = (response as List)
-            .map((item) => item['usuarios']?['nombre'] as String? ?? 'Desconocido')
-            .toList();
+        final personalData =
+            (response as List).map((item) {
+              final nombre =
+                  item['usuarios']?['nombre'] as String? ?? 'Desconocido';
+              final inicioStr = item['inicio'] as String?;
+
+              // Calcular duración desde el inicio
+              int duracionMinutos = 0;
+              if (inicioStr != null) {
+                try {
+                  String fechaLimpia = inicioStr;
+                  if (fechaLimpia.contains('+00:00Z')) {
+                    fechaLimpia = fechaLimpia.replaceAll('+00:00Z', 'Z');
+                  } else if (!fechaLimpia.endsWith('Z') &&
+                      !fechaLimpia.contains('+')) {
+                    fechaLimpia = '${fechaLimpia}Z';
+                  }
+
+                  final inicio = DateTime.parse(fechaLimpia).toLocal();
+                  final ahora = DateTime.now();
+                  duracionMinutos = ahora.difference(inicio).inMinutes;
+                } catch (e) {
+                  print('Error calculando duración: $e');
+                }
+              }
+
+              return {
+                'nombre': nombre,
+                'duracion': duracionMinutos,
+                'inicio': inicioStr,
+              };
+            }).toList();
+
         setState(() {
-          _personalEnDescanso = names;
+          _personalEnDescanso = personalData;
         });
       }
     } catch (e) {
@@ -220,7 +271,11 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
 
       if (userResponse.isEmpty) {
         if (mounted) {
-          _showResponseMessage(context, 'Usuario no encontrado', isSuccess: false);
+          _showResponseMessage(
+            context,
+            'Usuario no encontrado',
+            isSuccess: false,
+          );
         }
         setState(() => _processing = false);
         return;
@@ -238,7 +293,9 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
           .eq('usuario_id', userId)
           .eq('tipo', 'Pendiente');
 
-      print("🔍 Descansos activos ('Pendiente') encontrados: ${descansosResponse.length}");
+      print(
+        "🔍 Descansos activos ('Pendiente') encontrados: ${descansosResponse.length}",
+      );
 
       if (descansosResponse.isNotEmpty) {
         // PROCESAR SALIDA DE DESCANSO
@@ -353,7 +410,10 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
       print("   📅 Fecha limpia: $fechaLimpia");
 
       // SIMPLIFICADO: Usar hora del dispositivo directamente
-      final inicio = DateTime.parse(fechaLimpia).toLocal(); // Convertir a hora local del dispositivo
+      final inicio =
+          DateTime.parse(
+            fechaLimpia,
+          ).toLocal(); // Convertir a hora local del dispositivo
       final fin = _getCurrentTime(); // Hora actual del dispositivo
 
       final duracionMinutos = fin.difference(inicio).inMinutes;
@@ -397,7 +457,9 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
           .eq('usuario_id', usuarioId);
 
       final descansosRestantes = verificacionResponse.length;
-      print("   🔍 Verificación: $descansosRestantes descansos activos restantes");
+      print(
+        "   🔍 Verificación: $descansosRestantes descansos activos restantes",
+      );
 
       if (descansosRestantes > 0) {
         print("   ⚠️ PROBLEMA: Quedan descansos activos");
@@ -419,22 +481,23 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
     } catch (e) {
       final errorMsg = "Error cerrando descanso: $e";
       print("   ❌ ERROR CRÍTICO: $errorMsg");
-      return {
-        'success': false,
-        'mensaje': errorMsg,
-        'error': e.toString(),
-      };
+      return {'success': false, 'mensaje': errorMsg, 'error': e.toString()};
     }
   }
 
-  void _showResponseMessage(BuildContext context, String message, {bool isSuccess = true}) {
+  void _showResponseMessage(
+    BuildContext context,
+    String message, {
+    bool isSuccess = true,
+  }) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
           message,
           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
         ),
-        backgroundColor: isSuccess ? Colors.green.shade600 : Colors.red.shade600,
+        backgroundColor:
+            isSuccess ? Colors.green.shade600 : Colors.red.shade600,
         duration: Duration(seconds: isSuccess ? 3 : 5),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
@@ -443,60 +506,134 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
     );
   }
 
-  Widget _buildPersonalEnDescanso(bool isDesktop, bool isTablet) {
+  Widget _buildPersonalEnDescanso(
+    bool isXLDesktop,
+    bool isDesktop,
+    bool isTablet,
+    bool isSmallMobile,
+  ) {
     return Card(
       elevation: 6,
       color: const Color(0xFF334155),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(
-          color: _personalEnDescanso.isEmpty
-              ? Colors.green.withOpacity(0.3)
-              : Colors.orange.withOpacity(0.5),
+          color:
+              _personalEnDescanso.isEmpty
+                  ? Colors.green.withOpacity(0.3)
+                  : Colors.orange.withOpacity(0.5),
           width: 1,
         ),
       ),
       child: Padding(
-        padding: EdgeInsets.all(isDesktop ? 24 : 16),
+        padding: EdgeInsets.all(
+          isXLDesktop
+              ? 28
+              : isDesktop
+              ? 24
+              : isTablet
+              ? 20
+              : isSmallMobile
+              ? 14
+              : 16,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Icon(
-                  _personalEnDescanso.isEmpty ? Icons.check_circle : Icons.coffee,
-                  color: _personalEnDescanso.isEmpty ? Colors.green : Colors.orange,
-                  size: isDesktop ? 24 : 20,
+                  _personalEnDescanso.isEmpty
+                      ? Icons.check_circle
+                      : Icons.coffee,
+                  color:
+                      _personalEnDescanso.isEmpty
+                          ? Colors.green
+                          : Colors.orange,
+                  size:
+                      isXLDesktop
+                          ? 26
+                          : isDesktop
+                          ? 24
+                          : isTablet
+                          ? 22
+                          : isSmallMobile
+                          ? 18
+                          : 20,
                 ),
-                const SizedBox(width: 8),
+                SizedBox(width: isSmallMobile ? 6 : 8),
                 Text(
                   'Personal en Descanso',
                   style: TextStyle(
-                    fontSize: isDesktop ? 18 : 16,
+                    fontSize:
+                        isXLDesktop
+                            ? 20
+                            : isDesktop
+                            ? 18
+                            : isTablet
+                            ? 17
+                            : isSmallMobile
+                            ? 15
+                            : 16,
                     fontWeight: FontWeight.w500,
                     color: Colors.white,
                   ),
                 ),
                 const Spacer(),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: EdgeInsets.symmetric(
+                    horizontal:
+                        isXLDesktop
+                            ? 14
+                            : isDesktop
+                            ? 12
+                            : isTablet
+                            ? 11
+                            : isSmallMobile
+                            ? 8
+                            : 10,
+                    vertical:
+                        isXLDesktop
+                            ? 8
+                            : isDesktop
+                            ? 6
+                            : isTablet
+                            ? 5
+                            : isSmallMobile
+                            ? 3
+                            : 4,
+                  ),
                   decoration: BoxDecoration(
-                    color: _personalEnDescanso.isEmpty
-                        ? Colors.green.withOpacity(0.2)
-                        : Colors.orange.withOpacity(0.2),
+                    color:
+                        _personalEnDescanso.isEmpty
+                            ? Colors.green.withOpacity(0.2)
+                            : Colors.orange.withOpacity(0.2),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                      color: _personalEnDescanso.isEmpty
-                          ? Colors.green.withOpacity(0.5)
-                          : Colors.orange.withOpacity(0.5),
+                      color:
+                          _personalEnDescanso.isEmpty
+                              ? Colors.green.withOpacity(0.5)
+                              : Colors.orange.withOpacity(0.5),
                     ),
                   ),
                   child: Text(
                     '${_personalEnDescanso.length}',
                     style: TextStyle(
-                      color: _personalEnDescanso.isEmpty ? Colors.green : Colors.orange,
+                      color:
+                          _personalEnDescanso.isEmpty
+                              ? Colors.green
+                              : Colors.orange,
                       fontWeight: FontWeight.bold,
-                      fontSize: isDesktop ? 14 : 12,
+                      fontSize:
+                          isXLDesktop
+                              ? 16
+                              : isDesktop
+                              ? 14
+                              : isTablet
+                              ? 13
+                              : isSmallMobile
+                              ? 11
+                              : 12,
                     ),
                   ),
                 ),
@@ -509,15 +646,44 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                   children: [
                     Icon(
                       Icons.work,
-                      size: isDesktop ? 48 : 36,
+                      size:
+                          isXLDesktop
+                              ? 52
+                              : isDesktop
+                              ? 48
+                              : isTablet
+                              ? 42
+                              : isSmallMobile
+                              ? 32
+                              : 36,
                       color: Colors.green.withOpacity(0.7),
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(
+                      height:
+                          isXLDesktop
+                              ? 14
+                              : isDesktop
+                              ? 12
+                              : isTablet
+                              ? 10
+                              : isSmallMobile
+                              ? 6
+                              : 8,
+                    ),
                     Text(
                       'Todo el personal está trabajando',
                       style: TextStyle(
                         color: Colors.green.shade300,
-                        fontSize: isDesktop ? 16 : 14,
+                        fontSize:
+                            isXLDesktop
+                                ? 18
+                                : isDesktop
+                                ? 16
+                                : isTablet
+                                ? 15
+                                : isSmallMobile
+                                ? 13
+                                : 14,
                         fontWeight: FontWeight.w400,
                       ),
                       textAlign: TextAlign.center,
@@ -526,42 +692,200 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                 ),
               )
             else
-              ...(_personalEnDescanso.map(
-                (nombre) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+              ...(_personalEnDescanso.map((persona) {
+                final nombre = persona['nombre'] as String;
+                final duracion = persona['duracion'] as int;
+
+                // Determinar color según duración
+                MaterialColor colorIndicador;
+                String tipoDescanso;
+                IconData icono;
+
+                if (duracion >= 20) {
+                  colorIndicador = Colors.blue;
+                  tipoDescanso = 'COLACIÓN';
+                  icono = Icons.restaurant;
+                } else {
+                  colorIndicador = Colors.orange;
+                  tipoDescanso = 'DESCANSO';
+                  icono = Icons.coffee;
+                }
+
+                return Padding(
+                  padding: EdgeInsets.only(
+                    bottom:
+                        isXLDesktop
+                            ? 12
+                            : isDesktop
+                            ? 10
+                            : isTablet
+                            ? 9
+                            : isSmallMobile
+                            ? 6
+                            : 8,
+                  ),
                   child: Container(
                     width: double.infinity,
-                    padding: EdgeInsets.all(isDesktop ? 16 : 12),
+                    padding: EdgeInsets.all(
+                      isXLDesktop
+                          ? 18
+                          : isDesktop
+                          ? 16
+                          : isTablet
+                          ? 14
+                          : isSmallMobile
+                          ? 10
+                          : 12,
+                    ),
                     decoration: BoxDecoration(
-                      color: Colors.orange.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(8),
+                      color: colorIndicador.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: Colors.orange.withOpacity(0.3),
+                        color: colorIndicador.withOpacity(0.3),
+                        width: 1.5,
                       ),
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          Icons.person,
-                          color: Colors.orange.shade300,
-                          size: isDesktop ? 20 : 18,
+                        Container(
+                          padding: EdgeInsets.all(
+                            isXLDesktop
+                                ? 10
+                                : isDesktop
+                                ? 8
+                                : isTablet
+                                ? 7
+                                : isSmallMobile
+                                ? 5
+                                : 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorIndicador.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            icono,
+                            color: colorIndicador.shade300,
+                            size:
+                                isXLDesktop
+                                    ? 22
+                                    : isDesktop
+                                    ? 20
+                                    : isTablet
+                                    ? 18
+                                    : isSmallMobile
+                                    ? 14
+                                    : 16,
+                          ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(
+                          width:
+                              isXLDesktop
+                                  ? 14
+                                  : isDesktop
+                                  ? 12
+                                  : isTablet
+                                  ? 10
+                                  : isSmallMobile
+                                  ? 6
+                                  : 8,
+                        ),
                         Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                nombre,
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize:
+                                      isXLDesktop
+                                          ? 18
+                                          : isDesktop
+                                          ? 16
+                                          : isTablet
+                                          ? 15
+                                          : isSmallMobile
+                                          ? 13
+                                          : 14,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                tipoDescanso,
+                                style: TextStyle(
+                                  color: colorIndicador.shade300,
+                                  fontSize:
+                                      isXLDesktop
+                                          ? 14
+                                          : isDesktop
+                                          ? 12
+                                          : isTablet
+                                          ? 11
+                                          : isSmallMobile
+                                          ? 9
+                                          : 10,
+                                  fontWeight: FontWeight.w600,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal:
+                                isXLDesktop
+                                    ? 14
+                                    : isDesktop
+                                    ? 12
+                                    : isTablet
+                                    ? 10
+                                    : isSmallMobile
+                                    ? 6
+                                    : 8,
+                            vertical:
+                                isXLDesktop
+                                    ? 8
+                                    : isDesktop
+                                    ? 6
+                                    : isTablet
+                                    ? 5
+                                    : isSmallMobile
+                                    ? 3
+                                    : 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: colorIndicador.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: colorIndicador.withOpacity(0.4),
+                            ),
+                          ),
                           child: Text(
-                            nombre,
+                            '${duracion}min',
                             style: TextStyle(
-                              color: Colors.white,
-                              fontSize: isDesktop ? 16 : 14,
-                              fontWeight: FontWeight.w400,
+                              color: colorIndicador.shade200,
+                              fontSize:
+                                  isXLDesktop
+                                      ? 16
+                                      : isDesktop
+                                      ? 14
+                                      : isTablet
+                                      ? 13
+                                      : isSmallMobile
+                                      ? 11
+                                      : 12,
+                              fontWeight: FontWeight.bold,
                             ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
-              )),
+                );
+              })),
           ],
         ),
       ),
@@ -571,32 +895,141 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
-    final isTablet = screenSize.width > 600;
+    final isSmallMobile = screenSize.width < 360;
+    final isMobile = screenSize.width <= 600;
+    final isTablet = screenSize.width > 600 && screenSize.width <= 1200;
     final isDesktop = screenSize.width > 1200;
+    final isXLDesktop = screenSize.width > 1600;
 
-    // Calcular padding responsivo
-    double horizontalPadding = 16.0;
-    if (isTablet) horizontalPadding = screenSize.width * 0.1;
-    if (isDesktop) horizontalPadding = screenSize.width * 0.15;
+    // Calcular padding responsivo mejorado
+    double horizontalPadding = 12.0;
+    if (isSmallMobile)
+      horizontalPadding = 8.0;
+    else if (isMobile)
+      horizontalPadding = 16.0;
+    else if (isTablet)
+      horizontalPadding = screenSize.width * 0.08;
+    else if (isDesktop && !isXLDesktop)
+      horizontalPadding = screenSize.width * 0.12;
+    else if (isXLDesktop)
+      horizontalPadding = screenSize.width * 0.15;
 
     // Calcular ancho máximo del contenido
     double maxWidth = double.infinity;
-    if (isTablet) maxWidth = 600;
-    if (isDesktop) maxWidth = 800;
+    if (isSmallMobile)
+      maxWidth = screenSize.width - (horizontalPadding * 2);
+    else if (isMobile)
+      maxWidth = 500;
+    else if (isTablet)
+      maxWidth = 700;
+    else if (isDesktop && !isXLDesktop)
+      maxWidth = 900;
+    else if (isXLDesktop)
+      maxWidth = 1100;
 
     return Scaffold(
       backgroundColor: const Color(0xFF1E293B),
       appBar: AppBar(
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.credit_card, color: Colors.amber),
-            SizedBox(width: 8),
-            Text('Lector de Tarjetas - Simplificado'),
+            const Icon(Icons.credit_card, color: Colors.amber),
+            SizedBox(width: isSmallMobile ? 4 : 8),
+            Expanded(
+              child: Text(
+                isDesktop
+                    ? 'Lector de Tarjetas - Simplificado'
+                    : isTablet
+                    ? 'Lector de Tarjetas'
+                    : isSmallMobile
+                    ? 'Lector'
+                    : 'Lector de Tarjetas',
+                style: TextStyle(
+                  fontSize:
+                      isXLDesktop
+                          ? 22
+                          : isDesktop
+                          ? 20
+                          : isTablet
+                          ? 18
+                          : isSmallMobile
+                          ? 14
+                          : 16,
+                ),
+              ),
+            ),
+            // Reloj en tiempo real
+            Container(
+              padding: EdgeInsets.symmetric(
+                horizontal:
+                    isXLDesktop
+                        ? 18
+                        : isDesktop
+                        ? 16
+                        : isTablet
+                        ? 14
+                        : isSmallMobile
+                        ? 8
+                        : 12,
+                vertical:
+                    isXLDesktop
+                        ? 10
+                        : isDesktop
+                        ? 8
+                        : isTablet
+                        ? 7
+                        : isSmallMobile
+                        ? 4
+                        : 6,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.amber.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.amber.withOpacity(0.5)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.access_time,
+                    color: Colors.amber.shade300,
+                    size:
+                        isXLDesktop
+                            ? 20
+                            : isDesktop
+                            ? 18
+                            : isTablet
+                            ? 17
+                            : isSmallMobile
+                            ? 14
+                            : 16,
+                  ),
+                  SizedBox(width: isSmallMobile ? 4 : 6),
+                  Text(
+                    _currentTime,
+                    style: TextStyle(
+                      color: Colors.amber.shade200,
+                      fontSize:
+                          isXLDesktop
+                              ? 18
+                              : isDesktop
+                              ? 16
+                              : isTablet
+                              ? 14
+                              : isSmallMobile
+                              ? 10
+                              : 12,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
         backgroundColor: const Color(0xFF0F172A),
         elevation: 0,
-        centerTitle: !isDesktop,
+        centerTitle: false,
       ),
       body: SizedBox(
         width: double.infinity,
@@ -604,7 +1037,16 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         child: SingleChildScrollView(
           padding: EdgeInsets.symmetric(
             horizontal: horizontalPadding,
-            vertical: isTablet ? 32 : 16,
+            vertical:
+                isXLDesktop
+                    ? 40
+                    : isDesktop
+                    ? 32
+                    : isTablet
+                    ? 24
+                    : isSmallMobile
+                    ? 12
+                    : 16,
           ),
           child: Center(
             child: ConstrainedBox(
@@ -614,13 +1056,33 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // Espaciado superior dinámico
-                  SizedBox(height: isDesktop ? 60 : isTablet ? 40 : 20),
+                  SizedBox(
+                    height:
+                        isXLDesktop
+                            ? 50
+                            : isDesktop
+                            ? 40
+                            : isTablet
+                            ? 24
+                            : isSmallMobile
+                            ? 12
+                            : 16,
+                  ),
 
                   // Título principal
                   Text(
                     'Deslice la tarjeta (Número de Rojo)',
                     style: TextStyle(
-                      fontSize: isDesktop ? 28 : isTablet ? 24 : 20,
+                      fontSize:
+                          isXLDesktop
+                              ? 32
+                              : isDesktop
+                              ? 28
+                              : isTablet
+                              ? 24
+                              : isSmallMobile
+                              ? 18
+                              : 20,
                       fontWeight: FontWeight.w300,
                       color: Colors.white70,
                       letterSpacing: 0.5,
@@ -628,7 +1090,18 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                     textAlign: TextAlign.center,
                   ),
 
-                  SizedBox(height: isDesktop ? 40 : isTablet ? 32 : 24),
+                  SizedBox(
+                    height:
+                        isXLDesktop
+                            ? 40
+                            : isDesktop
+                            ? 32
+                            : isTablet
+                            ? 24
+                            : isSmallMobile
+                            ? 16
+                            : 20,
+                  ),
 
                   // Card principal con el input
                   Card(
@@ -642,14 +1115,33 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                       ),
                     ),
                     child: Padding(
-                      padding: EdgeInsets.all(isDesktop ? 32 : isTablet ? 24 : 20),
+                      padding: EdgeInsets.all(
+                        isXLDesktop
+                            ? 32
+                            : isDesktop
+                            ? 28
+                            : isTablet
+                            ? 22
+                            : isSmallMobile
+                            ? 16
+                            : 18,
+                      ),
                       child: Column(
                         children: [
                           TextField(
                             controller: _controller,
                             autofocus: true,
                             style: TextStyle(
-                              fontSize: isDesktop ? 18 : isTablet ? 16 : 14,
+                              fontSize:
+                                  isXLDesktop
+                                      ? 19
+                                      : isDesktop
+                                      ? 17
+                                      : isTablet
+                                      ? 15
+                                      : isSmallMobile
+                                      ? 13
+                                      : 14,
                               color: Colors.white,
                             ),
                             decoration: InputDecoration(
@@ -675,33 +1167,99 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                               labelText: 'Deslice la tarjeta o ingrese código',
                               labelStyle: TextStyle(
                                 color: Colors.grey.shade400,
-                                fontSize: isDesktop ? 14 : isTablet ? 13 : 12,
+                                fontSize:
+                                    isXLDesktop
+                                        ? 15
+                                        : isDesktop
+                                        ? 13
+                                        : isTablet
+                                        ? 12
+                                        : isSmallMobile
+                                        ? 10
+                                        : 11,
                               ),
                               hintText: 'Esperando tarjeta...',
                               hintStyle: TextStyle(
                                 color: Colors.grey.shade500,
-                                fontSize: isDesktop ? 14 : isTablet ? 13 : 12,
+                                fontSize:
+                                    isXLDesktop
+                                        ? 15
+                                        : isDesktop
+                                        ? 13
+                                        : isTablet
+                                        ? 12
+                                        : isSmallMobile
+                                        ? 10
+                                        : 11,
                               ),
                               prefixIcon: Icon(
                                 Icons.credit_card,
                                 color: Colors.amber.withOpacity(0.7),
-                                size: isDesktop ? 24 : 20,
+                                size:
+                                    isXLDesktop
+                                        ? 26
+                                        : isDesktop
+                                        ? 24
+                                        : isTablet
+                                        ? 22
+                                        : isSmallMobile
+                                        ? 18
+                                        : 20,
                               ),
                               filled: true,
                               fillColor: const Color(0xFF475569),
                               contentPadding: EdgeInsets.symmetric(
-                                horizontal: isDesktop ? 20 : 16,
-                                vertical: isDesktop ? 20 : 16,
+                                horizontal:
+                                    isXLDesktop
+                                        ? 20
+                                        : isDesktop
+                                        ? 18
+                                        : isTablet
+                                        ? 16
+                                        : isSmallMobile
+                                        ? 12
+                                        : 14,
+                                vertical:
+                                    isXLDesktop
+                                        ? 20
+                                        : isDesktop
+                                        ? 18
+                                        : isTablet
+                                        ? 16
+                                        : isSmallMobile
+                                        ? 12
+                                        : 14,
                               ),
                             ),
                             onSubmitted: _handleInput,
                           ),
 
-                          SizedBox(height: isDesktop ? 24 : 16),
+                          SizedBox(
+                            height:
+                                isXLDesktop
+                                    ? 24
+                                    : isDesktop
+                                    ? 20
+                                    : isTablet
+                                    ? 16
+                                    : isSmallMobile
+                                    ? 12
+                                    : 14,
+                          ),
 
                           // Texto de ayuda
                           Container(
-                            padding: EdgeInsets.all(isDesktop ? 16 : 12),
+                            padding: EdgeInsets.all(
+                              isXLDesktop
+                                  ? 18
+                                  : isDesktop
+                                  ? 16
+                                  : isTablet
+                                  ? 14
+                                  : isSmallMobile
+                                  ? 10
+                                  : 12,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.amber.withOpacity(0.1),
                               borderRadius: BorderRadius.circular(8),
@@ -715,14 +1273,32 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                                 Icon(
                                   Icons.info_outline,
                                   color: Colors.amber.shade300,
-                                  size: isDesktop ? 20 : 18,
+                                  size:
+                                      isXLDesktop
+                                          ? 22
+                                          : isDesktop
+                                          ? 20
+                                          : isTablet
+                                          ? 19
+                                          : isSmallMobile
+                                          ? 16
+                                          : 18,
                                 ),
-                                const SizedBox(width: 8),
+                                SizedBox(width: isSmallMobile ? 6 : 8),
                                 Expanded(
                                   child: Text(
                                     'Versión simplificada - Usa hora del dispositivo',
                                     style: TextStyle(
-                                      fontSize: isDesktop ? 14 : isTablet ? 13 : 12,
+                                      fontSize:
+                                          isXLDesktop
+                                              ? 15
+                                              : isDesktop
+                                              ? 13
+                                              : isTablet
+                                              ? 12
+                                              : isSmallMobile
+                                              ? 10
+                                              : 11,
                                       color: Colors.amber.shade200,
                                       fontWeight: FontWeight.w400,
                                     ),
@@ -736,7 +1312,18 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                     ),
                   ),
 
-                  SizedBox(height: isDesktop ? 40 : isTablet ? 32 : 24),
+                  SizedBox(
+                    height:
+                        isXLDesktop
+                            ? 40
+                            : isDesktop
+                            ? 32
+                            : isTablet
+                            ? 24
+                            : isSmallMobile
+                            ? 16
+                            : 20,
+                  ),
 
                   // Indicador de procesamiento
                   if (_processing) ...[
@@ -744,32 +1331,97 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                       child: Column(
                         children: [
                           SizedBox(
-                            width: isDesktop ? 48 : isTablet ? 40 : 32,
-                            height: isDesktop ? 48 : isTablet ? 40 : 32,
+                            width:
+                                isXLDesktop
+                                    ? 56
+                                    : isDesktop
+                                    ? 48
+                                    : isTablet
+                                    ? 40
+                                    : isSmallMobile
+                                    ? 28
+                                    : 32,
+                            height:
+                                isXLDesktop
+                                    ? 56
+                                    : isDesktop
+                                    ? 48
+                                    : isTablet
+                                    ? 40
+                                    : isSmallMobile
+                                    ? 28
+                                    : 32,
                             child: const CircularProgressIndicator(
                               color: Colors.amber,
                               strokeWidth: 3,
                             ),
                           ),
-                          SizedBox(height: isDesktop ? 16 : 12),
+                          SizedBox(
+                            height:
+                                isXLDesktop
+                                    ? 18
+                                    : isDesktop
+                                    ? 16
+                                    : isTablet
+                                    ? 14
+                                    : isSmallMobile
+                                    ? 10
+                                    : 12,
+                          ),
                           Text(
                             'Procesando...',
                             style: TextStyle(
                               color: Colors.white70,
-                              fontSize: isDesktop ? 16 : isTablet ? 14 : 12,
+                              fontSize:
+                                  isXLDesktop
+                                      ? 18
+                                      : isDesktop
+                                      ? 16
+                                      : isTablet
+                                      ? 14
+                                      : isSmallMobile
+                                      ? 11
+                                      : 12,
                             ),
                           ),
                         ],
                       ),
                     ),
-                    SizedBox(height: isDesktop ? 40 : isTablet ? 32 : 24),
+                    SizedBox(
+                      height:
+                          isXLDesktop
+                              ? 48
+                              : isDesktop
+                              ? 40
+                              : isTablet
+                              ? 32
+                              : isSmallMobile
+                              ? 20
+                              : 24,
+                    ),
                   ],
 
                   // Widget para mostrar personal en descanso
-                  _buildPersonalEnDescanso(isDesktop, isTablet),
+                  _buildPersonalEnDescanso(
+                    isXLDesktop,
+                    isDesktop,
+                    isTablet,
+                    isSmallMobile,
+                  ),
 
                   // Espaciado inferior
-                  SizedBox(height: isDesktop ? 40 : isTablet ? 32 : 20),
+                  SizedBox(
+                    height:
+                        isXLDesktop
+                            ? 48
+                            : isDesktop
+                            ? 40
+                            : isTablet
+                            ? 32
+                            : isSmallMobile
+                            ? 16
+                            : 20,
+                  ),
                 ],
               ),
             ),
