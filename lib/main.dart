@@ -11,7 +11,7 @@ import 'package:intl/intl.dart';
 // SUPABASE_URL=https://ppyowdavsbkhvxzvaviy.supabase.co
 // SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBweW93ZGF2c2JraHZ4enZhdml5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTA5MTU4NjMsImV4cCI6MjA2NjQ5MTg2M30.ZFfAvT5icazQ1yh_JFYbQ-xbMunPJ8Q4Y47SpWWID2s
 // SECRET_KEY=SAAffKwZoAs0Qlwr
-// TZ=America/Punta_Arenas
+// TZ=America/Santiago
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,11 +25,18 @@ void main() async {
 
     final supabaseUrl = dotenv.env['SUPABASE_URL'];
     final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
-    final timezoneName = dotenv.env['TZ'] ?? 'America/Punta_Arenas';
-
-    // Configurar la zona horaria de Punta Arenas
-    tz.setLocalLocation(tz.getLocation(timezoneName));
-    print("🌎 Zona horaria configurada: $timezoneName");
+    
+    // Configurar la zona horaria de Chile (Santiago es la zona oficial)
+    // Nota: America/Punta_Arenas no existe, usamos America/Santiago
+    try {
+      tz.setLocalLocation(tz.getLocation('America/Santiago'));
+      print("🌎 Zona horaria configurada: America/Santiago (Chile)");
+    } catch (e) {
+      // Si falla, usar UTC como respaldo
+      tz.setLocalLocation(tz.getLocation('UTC'));
+      print("⚠️ Usando UTC como zona horaria por defecto");
+      print("Error de zona horaria: $e");
+    }
 
     if (supabaseUrl == null || supabaseAnonKey == null) {
       print("❌ Error: Variables de entorno no encontradas");
@@ -44,6 +51,9 @@ void main() async {
 
       await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
       print("✅ Supabase inicializado correctamente");
+
+      // Probar la conexión
+      // await testSupabaseConnection(); // Comentar por ahora para que la app inicie
     }
   } catch (e) {
     print("❌ Error al inicializar: $e");
@@ -548,15 +558,15 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
     );
   }
 
-  /// Obtiene la fecha/hora actual en zona horaria de Punta Arenas
+  /// Obtiene la fecha/hora actual en zona horaria de Chile
   tz.TZDateTime _getCurrentPuntaArenasTime() {
-    final location = tz.getLocation('America/Punta_Arenas');
+    final location = tz.getLocation('America/Santiago');
     return tz.TZDateTime.now(location);
   }
 
-  /// Convierte un timestamp UTC a zona horaria de Punta Arenas
+  /// Convierte un timestamp UTC a zona horaria de Chile
   tz.TZDateTime _convertToLocalTime(DateTime utcTime) {
-    final location = tz.getLocation('America/Punta_Arenas');
+    final location = tz.getLocation('America/Santiago');
     return tz.TZDateTime.from(utcTime, location);
   }
 
@@ -977,5 +987,56 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         elevation: 8,
       ),
     );
+  }
+}
+
+// Función para probar la conexión a Supabase
+Future<void> testSupabaseConnection() async {
+  try {
+    print("🔍 Probando conexión a Supabase...");
+
+    // Intentar hacer una consulta simple a la tabla usuarios (no empleados)
+    final response = await Supabase.instance.client
+        .from('usuarios')
+        .select('id, nombre')
+        .limit(1);
+
+    print("✅ Conexión exitosa a Supabase");
+    print("📊 Respuesta de prueba: $response");
+
+    // Probar también la tabla descansos
+    try {
+      final descansosResponse = await Supabase.instance.client
+          .from('descansos')
+          .select('*')
+          .limit(1);
+      print("✅ Tabla 'descansos' accesible");
+      print("📊 Datos de descansos: $descansosResponse");
+    } catch (e) {
+      print("⚠️ Problema con tabla 'descansos': $e");
+    }
+  } catch (e) {
+    print("❌ Error de conexión a Supabase: $e");
+    print("🔧 Verificar:");
+    print("   - URL de Supabase en .env");
+    print("   - Clave ANON_KEY en .env");
+    print("   - Configuración de RLS en la tabla 'usuarios'");
+    print("   - Configuración de RLS en la tabla 'descansos'");
+    print("   - Conectividad a Internet");
+
+    // Análisis más detallado del error
+    final errorStr = e.toString().toLowerCase();
+    if (errorStr.contains('401')) {
+      print(
+        "💡 Error 401: Problema de autenticación. JWT válido pero políticas RLS pueden estar bloqueando.",
+      );
+    } else if (errorStr.contains('404') ||
+        errorStr.contains('relation') && errorStr.contains('does not exist')) {
+      print("💡 Error 404: La tabla 'usuarios' no existe en la base de datos.");
+    } else if (errorStr.contains('permission')) {
+      print(
+        "💡 Error de permisos: Revisar políticas RLS - deben permitir SELECT anónimo.",
+      );
+    }
   }
 }
