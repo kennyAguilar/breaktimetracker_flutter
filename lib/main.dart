@@ -770,9 +770,10 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
       final finLocalTime = _getCurrentPuntaArenasTime();
       final fin = _convertToUTC(finLocalTime);
 
-      final duracionMinutos = finLocalTime.difference(inicioLocalTime).inMinutes;
-      // Asegurar que la duración sea al menos 1 minuto para evitar registros de 0 minutos
-      final duracionFinal = duracionMinutos < 1 ? 1 : duracionMinutos;
+      final duracionMinutos =
+          finLocalTime.difference(inicioLocalTime).inMinutes;
+      // Registrar la duración real, sin forzar mínimo
+      final duracionFinal = duracionMinutos;
       final tipo = duracionFinal >= 30 ? 'COMIDA' : 'DESCANSO';
 
       print("   ⏰ Inicio UTC: ${inicio.toIso8601String()}");
@@ -783,7 +784,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         "   ⏰ Fin Local (Punta Arenas): ${DateFormat('dd/MM/yyyy HH:mm:ss').format(finLocalTime)}",
       );
       print("   ⏰ Fin UTC: ${fin.toIso8601String()}");
-      print("   ⏱️ Duración real: $duracionMinutos min → Registrada: $duracionFinal min → $tipo");
+      print("   ⏱️ Duración: $duracionFinal minutos → $tipo");
 
       // Preparar datos para tiempos_descanso
       final tiempoData = {
@@ -834,7 +835,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         }
       }
 
-      final successMsg = "Descanso cerrado: $tipo de $duracionFinal min (real: $duracionMinutos min)";
+      final successMsg = "Descanso cerrado: $tipo de $duracionFinal min";
       print("   ✅ ÉXITO: $successMsg");
 
       return {
@@ -842,7 +843,6 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         'mensaje': successMsg,
         'tipo': tipo,
         'duracion_minutos': duracionFinal,
-        'duracion_real': duracionMinutos,
         'descansos_restantes': descansosRestantes,
       };
     } catch (e) {
