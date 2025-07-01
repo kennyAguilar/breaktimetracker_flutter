@@ -235,17 +235,17 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
 
       if (e.toString().contains('401')) {
         errorMessage =
-            '🔑 Error 401: Clave API inválida\n\n' +
-            'La clave debe ser un JWT que empiece con "eyJ", no "sb_publishable_".\n' +
+            '🔑 Error 401: Clave API inválida\n\n'
+                'La clave debe ser un JWT que empiece con "eyJ", no "sb_publishable_".\n' +
             'Busca en tu dashboard la clave "anon" o "public".';
       } else if (e.toString().contains('relation') &&
           e.toString().contains('does not exist')) {
         errorMessage =
-            '🔍 La tabla "usuarios" no existe en la base de datos.\n' +
+            '🔍 La tabla "usuarios" no existe en la base de datos.\n'
             'Necesitas crear las tablas primero.';
       } else if (e.toString().contains('permission')) {
         errorMessage =
-            '🚫 Sin permisos: Las políticas RLS bloquean el acceso.\n' +
+            '🚫 Sin permisos: Las políticas RLS bloquean el acceso.\n'
             'Configura las políticas de seguridad en Supabase.';
       }
 

@@ -25,7 +25,7 @@ void main() async {
 
     final supabaseUrl = dotenv.env['SUPABASE_URL'];
     final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
-    
+
     // Configurar la zona horaria de Chile (Santiago es la zona oficial)
     // Nota: America/Punta_Arenas no existe, usamos America/Santiago
     try {
@@ -239,7 +239,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         elevation: 0,
         centerTitle: !isDesktop,
       ),
-      body: Container(
+      body: SizedBox(
         width: double.infinity,
         height: double.infinity,
         child: SingleChildScrollView(
