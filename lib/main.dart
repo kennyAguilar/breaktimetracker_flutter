@@ -1,9 +1,13 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:intl/intl.dart';
+
+// Importar utilidades de parsing de tarjetas
+import 'tarjeta_utils.dart';
 
 // VERSIÓN SIMPLIFICADA - USA HORA DEL DISPOSITIVO
 // El dispositivo estará fijo en Punta Arenas, configurado por la empresa
@@ -246,19 +250,50 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
 
   Future<void> _handleInput(String rawValue) async {
     final raw = rawValue.trim();
-    final code = raw.replaceAll(RegExp(r'^;|\?\$'), '');
+
+    // 🆕 USAR UTILIDADES DE PARSING DE TARJETAS
+    print("🔍 === PROCESANDO ENTRADA DE TARJETA ===");
+    print("📥 Datos originales: '$raw'");
+
+    // Analizar con las utilidades de tarjeta
+    final cardInfo = TarjetaUtils.getCardInfo(raw);
+    final parsedCode = TarjetaUtils.parseCardData(raw);
+    final isValidFormat = TarjetaUtils.validateCardFormat(parsedCode);
+
+    print("📊 Información de tarjeta:");
+    print("   - Tipo: ${cardInfo['trackInfo']}");
+    print("   - Código parseado: '$parsedCode'");
+    print("   - Formato válido: $isValidFormat");
+    print(
+      "   - Es banda magnética: ${cardInfo['hasTrack1'] || cardInfo['hasTrack2']}",
+    );
+
+    // Si no es válido, intentar limpieza adicional
+    String finalCode = parsedCode;
+    if (!isValidFormat || parsedCode.isEmpty) {
+      final cleaned = TarjetaUtils.cleanCardData(raw);
+      finalCode = TarjetaUtils.extractEmployeeCode(cleaned);
+      print("🧹 Después de limpieza: '$finalCode'");
+    }
+
+    // Si aún no es válido, usar el método anterior como fallback
+    if (finalCode.isEmpty || finalCode.length < 3) {
+      finalCode = raw.replaceAll(RegExp(r'^;|\?\$'), '');
+      print("🔄 Usando método fallback: '$finalCode'");
+    }
+
     _controller.clear();
     setState(() => _processing = true);
 
     try {
       final supabase = Supabase.instance.client;
-      print("🔍 Buscando usuario con código: $code");
+      print("🔍 Buscando usuario con código final: '$finalCode'");
 
       // 1) Buscar usuario por tarjeta primero
       List<Map<String, dynamic>> userResponse = await supabase
           .from('usuarios')
           .select('*')
-          .eq('tarjeta', code);
+          .eq('tarjeta', finalCode);
 
       print("🆔 Búsqueda por tarjeta: ${userResponse.length} resultados");
 
@@ -267,7 +302,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         userResponse = await supabase
             .from('usuarios')
             .select('*')
-            .eq('codigo', code.toUpperCase());
+            .eq('codigo', finalCode.toUpperCase());
         print("🔤 Búsqueda por código: ${userResponse.length} resultados");
       }
 
@@ -275,7 +310,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         if (mounted) {
           _showResponseMessage(
             context,
-            'Usuario no encontrado',
+            'Usuario no encontrado con código: $finalCode',
             isSuccess: false,
           );
         }
@@ -288,7 +323,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
       final userName = user['nombre'] as String;
       print("👤 Usuario encontrado: $userName (ID: $userId)");
 
-      // 2) Verificar si tiene descanso activo
+      // ...resto del código de descansos... 2) Verificar si tiene descanso activo
       final descansosResponse = await supabase
           .from('descansos')
           .select('*')
@@ -384,6 +419,200 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
 
     setState(() => _processing = false);
     _fetchPersonalEnDescanso(); // Actualizar la lista después de cada operación
+  }
+
+  // 🆕 FUNCIÓN PARA MOSTRAR DIÁLOGO DE PRUEBA DE TARJETAS
+  void _showCardTestDialog() {
+    final TextEditingController testController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF334155),
+          title: const Text(
+            '🧪 Prueba de Parsing de Tarjetas',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: SizedBox(
+            width: 400,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: testController,
+                  style: const TextStyle(color: Colors.white),
+                  decoration: InputDecoration(
+                    labelText: 'Datos de tarjeta',
+                    labelStyle: TextStyle(color: Colors.grey.shade400),
+                    hintText: 'Pega aquí los datos de la tarjeta...',
+                    hintStyle: TextStyle(color: Colors.grey.shade500),
+                    filled: true,
+                    fillColor: const Color(0xFF475569),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Ejemplos de formatos soportados:',
+                  style: TextStyle(
+                    color: Colors.amber,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  '• Track 1: %B123456789^DOE/JOHN^2512101?\n'
+                  '• Track 2: ;123456789=2512101?\n'
+                  '• Numérico: 123456789\n'
+                  '• Con prefijo: EMPL123456',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final testData = testController.text;
+                if (testData.isNotEmpty) {
+                  Navigator.of(context).pop();
+                  _runCardTest(testData);
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.shade600,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Probar'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // 🆕 FUNCIÓN PARA EJECUTAR PRUEBA DE TARJETA
+  void _runCardTest(String testData) {
+    print("\n🧪 === EJECUTANDO PRUEBA DE TARJETA ===");
+
+    // Ejecutar debugging completo
+    final debugInfo = TarjetaUtils.debugCardParsing(testData);
+
+    // Mostrar resultados en un diálogo
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: const Color(0xFF334155),
+          title: const Text(
+            '📊 Resultados de Parsing',
+            style: TextStyle(color: Colors.white),
+          ),
+          content: SizedBox(
+            width: 500,
+            height: 400,
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildTestResult('Datos originales:', testData),
+                  _buildTestResult(
+                    'Código parseado:',
+                    debugInfo['parsedResult'] ?? 'Error',
+                  ),
+                  _buildTestResult(
+                    'Formato válido:',
+                    debugInfo['parsingSuccess']?.toString() ?? 'false',
+                  ),
+                  _buildTestResult(
+                    'Tipo de tarjeta:',
+                    debugInfo['cardInfo']?['trackInfo'] ?? 'Desconocido',
+                  ),
+                  _buildTestResult(
+                    'Es banda magnética:',
+                    debugInfo['isMagneticStripe']?.toString() ?? 'false',
+                  ),
+                  _buildTestResult(
+                    'Longitud original:',
+                    debugInfo['rawLength']?.toString() ?? '0',
+                  ),
+                  if (debugInfo['cardInfo'] != null) ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Información detallada:',
+                      style: TextStyle(
+                        color: Colors.amber,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      debugInfo['cardInfo'].toString(),
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cerrar'),
+            ),
+            if (debugInfo['parsedResult'] != null &&
+                debugInfo['parsedResult'].isNotEmpty)
+              ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _controller.text = debugInfo['parsedResult'];
+                  _handleInput(debugInfo['parsedResult']);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green.shade600,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('Usar este código'),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildTestResult(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: const TextStyle(
+                color: Colors.amber,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(value, style: const TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   // SIMPLIFICAR función de cierre de descanso
@@ -1309,6 +1538,62 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                               ],
                             ),
                           ),
+
+                          // 🆕 BOTÓN DE PRUEBA DE PARSING (solo en modo debug)
+                          if (kDebugMode) ...[
+                            SizedBox(
+                              height:
+                                  isXLDesktop
+                                      ? 16
+                                      : isDesktop
+                                      ? 14
+                                      : isTablet
+                                      ? 12
+                                      : isSmallMobile
+                                      ? 8
+                                      : 10,
+                            ),
+                            SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton.icon(
+                                onPressed: _showCardTestDialog,
+                                icon: const Icon(Icons.bug_report),
+                                label: Text(
+                                  isSmallMobile
+                                      ? 'Test Parsing'
+                                      : 'Probar Parsing de Tarjetas',
+                                  style: TextStyle(
+                                    fontSize:
+                                        isXLDesktop
+                                            ? 14
+                                            : isDesktop
+                                            ? 12
+                                            : isTablet
+                                            ? 11
+                                            : isSmallMobile
+                                            ? 9
+                                            : 10,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.blue.shade600,
+                                  foregroundColor: Colors.white,
+                                  padding: EdgeInsets.symmetric(
+                                    vertical:
+                                        isXLDesktop
+                                            ? 12
+                                            : isDesktop
+                                            ? 10
+                                            : isTablet
+                                            ? 9
+                                            : isSmallMobile
+                                            ? 6
+                                            : 8,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                     ),
