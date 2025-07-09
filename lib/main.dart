@@ -157,8 +157,8 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
     _updateCurrentTime();
     _fetchPersonalEnDescanso();
 
-    // Timer para actualizar personal en descanso cada minuto
-    _refreshTimer = Timer.periodic(const Duration(minutes: 1), (timer) {
+    // Timer para actualizar personal en descanso cada 10 segundos (más responsive)
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
       if (mounted) {
         _fetchPersonalEnDescanso();
       }
@@ -344,6 +344,9 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         final success = await _cerrarDescansoUsuario(userId, descansoActivo);
 
         if (success['success']) {
+          // 🔄 ACTUALIZAR LISTA INMEDIATAMENTE después de salida exitosa
+          await _fetchPersonalEnDescanso();
+          
           if (mounted) {
             _showResponseMessage(
               context,
@@ -377,6 +380,9 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
             'inicio': horaUTC.toIso8601String(),
             'tipo': 'Pendiente',
           });
+
+          // 🔄 ACTUALIZAR LISTA INMEDIATAMENTE después de entrada exitosa
+          await _fetchPersonalEnDescanso();
 
           if (mounted) {
             _showResponseMessage(
@@ -418,7 +424,9 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
     }
 
     setState(() => _processing = false);
-    _fetchPersonalEnDescanso(); // Actualizar la lista después de cada operación
+    
+    // 🔄 ACTUALIZAR LISTA INMEDIATAMENTE después de cualquier operación
+    await _fetchPersonalEnDescanso();
   }
 
   // 🆕 FUNCIÓN PARA MOSTRAR DIÁLOGO DE PRUEBA DE TARJETAS
