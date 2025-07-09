@@ -346,7 +346,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         if (success['success']) {
           // 🔄 ACTUALIZAR LISTA INMEDIATAMENTE después de salida exitosa
           await _fetchPersonalEnDescanso();
-          
+
           if (mounted) {
             _showResponseMessage(
               context,
@@ -424,7 +424,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
     }
 
     setState(() => _processing = false);
-    
+
     // 🔄 ACTUALIZAR LISTA INMEDIATAMENTE después de cualquier operación
     await _fetchPersonalEnDescanso();
   }
@@ -656,6 +656,31 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
       final fin = _getCurrentTime(); // Hora actual del dispositivo
 
       final duracionMinutos = fin.difference(inicio).inMinutes;
+
+      // 🔧 MANEJO ESPECIAL: Si duración es muy corta (< 1 min), es una corrección inmediata
+      if (duracionMinutos < 1) {
+        print("   ⚡ CORRECCIÓN INMEDIATA detectada (< 1 min)");
+        print(
+          "   🗑️ Eliminando descanso sin registrar en tiempos_descanso...",
+        );
+
+        // Solo eliminar el descanso activo, no registrar tiempo
+        await Supabase.instance.client
+            .from('descansos')
+            .delete()
+            .eq('id', descansoActivo['id']);
+
+        print("   ✅ Descanso cancelado exitosamente");
+
+        return {
+          'success': true,
+          'mensaje': 'Marcación corregida inmediatamente',
+          'tipo': 'CORRECCIÓN',
+          'duracion_minutos': 0,
+          'descansos_restantes': 0,
+        };
+      }
+
       final tipo = duracionMinutos >= 30 ? 'COMIDA' : 'DESCANSO';
 
       print("   ⏰ Inicio: ${_formatTime(inicio)}");
