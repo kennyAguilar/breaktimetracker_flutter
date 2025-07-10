@@ -150,6 +150,8 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
   Timer? _refreshTimer;
   Timer? _clockTimer;
   String _currentTime = DateFormat('HH:mm:ss').format(DateTime.now());
+  bool _isOnline = true; // Estado de conexión
+  int _connectionErrors = 0; // Contador de errores consecutivos
 
   @override
   void initState() {
@@ -203,7 +205,8 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
       final response = await Supabase.instance.client
           .from('descansos')
           .select('id, inicio, usuarios(nombre)')
-          .eq('tipo', 'Pendiente');
+          .eq('tipo', 'Pendiente')
+          .timeout(const Duration(seconds: 10)); // Timeout más corto
 
       if (mounted) {
         final personalData =
@@ -241,10 +244,50 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
 
         setState(() {
           _personalEnDescanso = personalData;
+          // Resetear estado de conexión si estaba offline
+          if (!_isOnline) {
+            _isOnline = true;
+            _connectionErrors = 0;
+            if (mounted) {
+              _showResponseMessage(
+                context,
+                "🌐 Conexión restaurada",
+                isSuccess: true,
+              );
+            }
+          }
         });
       }
     } catch (e) {
-      print("Error al obtener personal en descanso: $e");
+      // Manejo mejorado de errores de conexión
+      String errorMessage = "Error de conexión a Supabase";
+
+      if (e.toString().contains('Failed host lookup') ||
+          e.toString().contains('SocketException')) {
+        errorMessage = "Sin conexión a Internet o servidor no disponible";
+        print("❌ PROBLEMA DE CONECTIVIDAD: $e");
+        print("🌐 Verifica la conexión a Internet del dispositivo");
+
+        setState(() {
+          _isOnline = false;
+          _connectionErrors++;
+        });
+
+        // Mostrar mensaje solo en el primer error o cada 5 errores
+        if (_connectionErrors == 1 || _connectionErrors % 5 == 0) {
+          if (mounted) {
+            _showResponseMessage(context, errorMessage, isSuccess: false);
+          }
+        }
+      } else if (e.toString().contains('TimeoutException')) {
+        errorMessage = "Timeout - Servidor muy lento";
+        print("⏰ TIMEOUT: $e");
+        setState(() => _isOnline = false);
+      } else {
+        errorMessage = "Error al obtener personal en descanso: $e";
+        print("❌ ERROR: $e");
+        setState(() => _isOnline = false);
+      }
     }
   }
 
@@ -289,11 +332,12 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
       final supabase = Supabase.instance.client;
       print("🔍 Buscando usuario con código final: '$finalCode'");
 
-      // 1) Buscar usuario por tarjeta primero
+      // 1) Buscar usuario por tarjeta primero con timeout
       List<Map<String, dynamic>> userResponse = await supabase
           .from('usuarios')
           .select('*')
-          .eq('tarjeta', finalCode);
+          .eq('tarjeta', finalCode)
+          .timeout(const Duration(seconds: 10));
 
       print("🆔 Búsqueda por tarjeta: ${userResponse.length} resultados");
 
@@ -302,7 +346,8 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         userResponse = await supabase
             .from('usuarios')
             .select('*')
-            .eq('codigo', finalCode.toUpperCase());
+            .eq('codigo', finalCode.toUpperCase())
+            .timeout(const Duration(seconds: 10));
         print("🔤 Búsqueda por código: ${userResponse.length} resultados");
       }
 
@@ -328,7 +373,8 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
           .from('descansos')
           .select('*')
           .eq('usuario_id', userId)
-          .eq('tipo', 'Pendiente');
+          .eq('tipo', 'Pendiente')
+          .timeout(const Duration(seconds: 10));
 
       print(
         "🔍 Descansos activos ('Pendiente') encontrados: ${descansosResponse.length}",
@@ -375,11 +421,14 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
           print("🕐 Hora local (dispositivo): ${_formatTime(horaLocal)}");
           print("🕐 Hora UTC para BD: ${horaUTC.toIso8601String()}");
 
-          await supabase.from('descansos').insert({
-            'usuario_id': userId,
-            'inicio': horaUTC.toIso8601String(),
-            'tipo': 'Pendiente',
-          });
+          await supabase
+              .from('descansos')
+              .insert({
+                'usuario_id': userId,
+                'inicio': horaUTC.toIso8601String(),
+                'tipo': 'Pendiente',
+              })
+              .timeout(const Duration(seconds: 10));
 
           // 🔄 ACTUALIZAR LISTA INMEDIATAMENTE después de entrada exitosa
           await _fetchPersonalEnDescanso();
@@ -408,7 +457,14 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
 
       String errorMessage = 'Error: $e';
 
-      if (e.toString().contains('401')) {
+      if (e.toString().contains('Failed host lookup') ||
+          e.toString().contains('SocketException')) {
+        errorMessage = '🌐 Sin conexión a Internet - Verifique la red';
+        setState(() => _isOnline = false);
+      } else if (e.toString().contains('TimeoutException')) {
+        errorMessage = '⏰ Timeout - Servidor muy lento, intente nuevamente';
+        setState(() => _isOnline = false);
+      } else if (e.toString().contains('401')) {
         errorMessage = '🔑 Error 401: Clave API inválida o proyecto incorrecto';
       } else if (e.toString().contains('404') ||
           (e.toString().contains('relation') &&
@@ -668,7 +724,8 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         await Supabase.instance.client
             .from('descansos')
             .delete()
-            .eq('id', descansoActivo['id']);
+            .eq('id', descansoActivo['id'])
+            .timeout(const Duration(seconds: 10));
 
         print("   ✅ Descanso cancelado exitosamente");
 
@@ -701,7 +758,8 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
       print("   📝 Insertando tiempo de descanso...");
       await Supabase.instance.client
           .from('tiempos_descanso')
-          .insert(tiempoData);
+          .insert(tiempoData)
+          .timeout(const Duration(seconds: 10));
 
       print("   ✅ Tiempo insertado exitosamente");
 
@@ -710,7 +768,8 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
       await Supabase.instance.client
           .from('descansos')
           .delete()
-          .eq('id', descansoActivo['id']);
+          .eq('id', descansoActivo['id'])
+          .timeout(const Duration(seconds: 10));
 
       print("   ✅ Descanso eliminado");
 
@@ -718,7 +777,8 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
       final verificacionResponse = await Supabase.instance.client
           .from('descansos')
           .select('*')
-          .eq('usuario_id', usuarioId);
+          .eq('usuario_id', usuarioId)
+          .timeout(const Duration(seconds: 10));
 
       final descansosRestantes = verificacionResponse.length;
       print(
@@ -1288,6 +1348,76 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                       fontFamily: 'monospace',
                     ),
                   ),
+                ],
+              ),
+            ),
+
+            // Indicador de estado de conexión
+            SizedBox(width: isSmallMobile ? 6 : 10),
+            Container(
+              padding: EdgeInsets.all(
+                isXLDesktop
+                    ? 8
+                    : isDesktop
+                    ? 7
+                    : isTablet
+                    ? 6
+                    : isSmallMobile
+                    ? 4
+                    : 5,
+              ),
+              decoration: BoxDecoration(
+                color:
+                    _isOnline
+                        ? Colors.green.withValues(alpha: 0.2)
+                        : Colors.red.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color:
+                      _isOnline
+                          ? Colors.green.withValues(alpha: 0.5)
+                          : Colors.red.withValues(alpha: 0.5),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _isOnline ? Icons.cloud_done : Icons.cloud_off,
+                    color:
+                        _isOnline ? Colors.green.shade300 : Colors.red.shade300,
+                    size:
+                        isXLDesktop
+                            ? 18
+                            : isDesktop
+                            ? 16
+                            : isTablet
+                            ? 15
+                            : isSmallMobile
+                            ? 12
+                            : 14,
+                  ),
+                  if (!isSmallMobile) ...[
+                    SizedBox(width: 4),
+                    Text(
+                      _isOnline ? 'Online' : 'Offline',
+                      style: TextStyle(
+                        color:
+                            _isOnline
+                                ? Colors.green.shade200
+                                : Colors.red.shade200,
+                        fontSize:
+                            isXLDesktop
+                                ? 12
+                                : isDesktop
+                                ? 11
+                                : isTablet
+                                ? 10
+                                : 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
