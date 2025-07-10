@@ -1,19 +1,19 @@
-/// Utilidades para parsing de tarjetas de banda magnética
-/// =====================================================
-///
-/// Este módulo contiene todas las funciones necesarias para parsear datos de tarjetas
-/// de banda magnética en diferentes formatos. Incluye validación, limpieza y extracción
-/// de información útil para el sistema de control de descansos.
-///
-/// Características:
-/// - Soporte para múltiples formatos de tarjeta
-/// - Limpieza automática de caracteres especiales
-/// - Validación de formato
-/// - Extracción de códigos de empleado
-/// - Logging detallado para debugging
-///
-/// Autor: Sistema BreakTimeTracker Flutter
-/// Fecha: Julio 2025
+// Utilidades para parsing de tarjetas de banda magnética
+// =====================================================
+//
+// Este módulo contiene todas las funciones necesarias para parsear datos de tarjetas
+// de banda magnética en diferentes formatos. Incluye validación, limpieza y extracción
+// de información útil para el sistema de control de descansos.
+//
+// Características:
+// - Soporte para múltiples formatos de tarjeta
+// - Limpieza automática de caracteres especiales
+// - Validación de formato
+// - Extracción de códigos de empleado
+// - Logging detallado para debugging
+//
+// Autor: Sistema BreakTimeTracker Flutter
+// Fecha: Julio 2025
 
 class TarjetaUtils {
   /// Parsea datos de tarjeta de banda magnética y extrae información útil.

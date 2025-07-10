@@ -784,8 +784,8 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         side: BorderSide(
           color:
               _personalEnDescanso.isEmpty
-                  ? Colors.green.withOpacity(0.3)
-                  : Colors.orange.withOpacity(0.5),
+                  ? Colors.green.withValues(alpha: 0.3)
+                  : Colors.orange.withValues(alpha: 0.5),
           width: 1,
         ),
       ),
@@ -870,14 +870,14 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                   decoration: BoxDecoration(
                     color:
                         _personalEnDescanso.isEmpty
-                            ? Colors.green.withOpacity(0.2)
-                            : Colors.orange.withOpacity(0.2),
+                            ? Colors.green.withValues(alpha: 0.2)
+                            : Colors.orange.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
                       color:
                           _personalEnDescanso.isEmpty
-                              ? Colors.green.withOpacity(0.5)
-                              : Colors.orange.withOpacity(0.5),
+                              ? Colors.green.withValues(alpha: 0.5)
+                              : Colors.orange.withValues(alpha: 0.5),
                     ),
                   ),
                   child: Text(
@@ -920,7 +920,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                               : isSmallMobile
                               ? 32
                               : 36,
-                      color: Colors.green.withOpacity(0.7),
+                      color: Colors.green.withValues(alpha: 0.7),
                     ),
                     SizedBox(
                       height:
@@ -1002,10 +1002,10 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                           : 12,
                     ),
                     decoration: BoxDecoration(
-                      color: colorIndicador.withOpacity(0.1),
+                      color: colorIndicador.withValues(alpha: 0.1),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: colorIndicador.withOpacity(0.3),
+                        color: colorIndicador.withValues(alpha: 0.3),
                         width: 1.5,
                       ),
                     ),
@@ -1024,7 +1024,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                                 : 6,
                           ),
                           decoration: BoxDecoration(
-                            color: colorIndicador.withOpacity(0.2),
+                            color: colorIndicador.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
@@ -1121,10 +1121,10 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                                     : 4,
                           ),
                           decoration: BoxDecoration(
-                            color: colorIndicador.withOpacity(0.2),
+                            color: colorIndicador.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(20),
                             border: Border.all(
-                              color: colorIndicador.withOpacity(0.4),
+                              color: colorIndicador.withValues(alpha: 0.4),
                             ),
                           ),
                           child: Text(
@@ -1169,27 +1169,29 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
     double horizontalPadding = 12.0;
     if (isSmallMobile) {
       horizontalPadding = 8.0;
-    } else if (isMobile)
+    } else if (isMobile) {
       horizontalPadding = 16.0;
-    else if (isTablet)
+    } else if (isTablet) {
       horizontalPadding = screenSize.width * 0.08;
-    else if (isDesktop && !isXLDesktop)
+    } else if (isDesktop && !isXLDesktop) {
       horizontalPadding = screenSize.width * 0.12;
-    else if (isXLDesktop)
+    } else if (isXLDesktop) {
       horizontalPadding = screenSize.width * 0.15;
+    }
 
     // Calcular ancho máximo del contenido
     double maxWidth = double.infinity;
     if (isSmallMobile) {
       maxWidth = screenSize.width - (horizontalPadding * 2);
-    } else if (isMobile)
+    } else if (isMobile) {
       maxWidth = 500;
-    else if (isTablet)
+    } else if (isTablet) {
       maxWidth = 700;
-    else if (isDesktop && !isXLDesktop)
+    } else if (isDesktop && !isXLDesktop) {
       maxWidth = 900;
-    else if (isXLDesktop)
+    } else if (isXLDesktop) {
       maxWidth = 1100;
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFF1E293B),
@@ -1246,9 +1248,9 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                         : 6,
               ),
               decoration: BoxDecoration(
-                color: Colors.amber.withOpacity(0.2),
+                color: Colors.amber.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.amber.withOpacity(0.5)),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.5)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1374,7 +1376,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                       side: BorderSide(
-                        color: Colors.amber.withOpacity(0.3),
+                        color: Colors.amber.withValues(alpha: 0.3),
                         width: 1,
                       ),
                     ),
@@ -1412,7 +1414,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                               border: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(12),
                                 borderSide: BorderSide(
-                                  color: Colors.amber.withOpacity(0.5),
+                                  color: Colors.amber.withValues(alpha: 0.5),
                                 ),
                               ),
                               focusedBorder: OutlineInputBorder(
@@ -1458,7 +1460,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                               ),
                               prefixIcon: Icon(
                                 Icons.credit_card,
-                                color: Colors.amber.withOpacity(0.7),
+                                color: Colors.amber.withValues(alpha: 0.7),
                                 size:
                                     isXLDesktop
                                         ? 26
@@ -1525,10 +1527,10 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                                   : 12,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.amber.withOpacity(0.1),
+                              color: Colors.amber.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(
-                                color: Colors.amber.withOpacity(0.3),
+                                color: Colors.amber.withValues(alpha: 0.3),
                                 width: 1,
                               ),
                             ),
