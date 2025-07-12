@@ -145,6 +145,7 @@ class CardEntryExitPage extends StatefulWidget {
 
 class _CardEntryExitPageState extends State<CardEntryExitPage> {
   final TextEditingController _controller = TextEditingController();
+  final FocusNode _textFieldFocusNode = FocusNode(); // 🆕 Nodo de foco dedicado
   bool _processing = false;
   List<Map<String, dynamic>> _personalEnDescanso = [];
   Timer? _refreshTimer;
@@ -159,10 +160,21 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
     _updateCurrentTime();
     _fetchPersonalEnDescanso();
 
+    // 🎯 MANTENER FOCO EN EL CAMPO DE ENTRADA
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _textFieldFocusNode.requestFocus();
+      }
+    });
+
     // Timer para actualizar personal en descanso cada 10 segundos (más responsive)
     _refreshTimer = Timer.periodic(const Duration(seconds: 10), (timer) {
       if (mounted) {
         _fetchPersonalEnDescanso();
+        // 🎯 RECUPERAR FOCO si se perdió
+        if (!_textFieldFocusNode.hasFocus) {
+          _textFieldFocusNode.requestFocus();
+        }
       }
     });
 
@@ -177,6 +189,7 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
   @override
   void dispose() {
     _controller.dispose();
+    _textFieldFocusNode.dispose(); // 🆕 Liberar el nodo de foco
     _refreshTimer?.cancel();
     _clockTimer?.cancel();
     super.dispose();
@@ -326,6 +339,12 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
     }
 
     _controller.clear();
+    // 🎯 ASEGURAR QUE EL FOCO REGRESE AL CAMPO INMEDIATAMENTE
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _textFieldFocusNode.requestFocus();
+      }
+    });
     setState(() => _processing = true);
 
     try {
@@ -483,6 +502,15 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
 
     // 🔄 ACTUALIZAR LISTA INMEDIATAMENTE después de cualquier operación
     await _fetchPersonalEnDescanso();
+
+    // 🎯 ASEGURAR QUE EL FOCO REGRESE AL CAMPO
+    if (mounted) {
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted && !_textFieldFocusNode.hasFocus) {
+          _textFieldFocusNode.requestFocus();
+        }
+      });
+    }
   }
 
   // 🆕 FUNCIÓN PARA MOSTRAR DIÁLOGO DE PRUEBA DE TARJETAS
@@ -828,6 +856,13 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
         margin: const EdgeInsets.all(16),
       ),
     );
+
+    // 🎯 RECUPERAR FOCO después de mostrar mensaje
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted && !_textFieldFocusNode.hasFocus) {
+        _textFieldFocusNode.requestFocus();
+      }
+    });
   }
 
   Widget _buildPersonalEnDescanso(
@@ -1526,7 +1561,14 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                         children: [
                           TextField(
                             controller: _controller,
+                            focusNode:
+                                _textFieldFocusNode, // 🆕 Usar el nodo de foco dedicado
                             autofocus: true,
+                            // 🎯 MANTENER FOCO SIEMPRE ACTIVO
+                            onTapOutside: (event) {
+                              // Prevenir que se pierda el foco cuando se toca fuera
+                              _textFieldFocusNode.requestFocus();
+                            },
                             style: TextStyle(
                               fontSize:
                                   isXLDesktop
@@ -1627,7 +1669,18 @@ class _CardEntryExitPageState extends State<CardEntryExitPage> {
                                         : 14,
                               ),
                             ),
-                            onSubmitted: _handleInput,
+                            onSubmitted: (value) {
+                              _handleInput(value);
+                              // 🎯 RECUPERAR FOCO inmediatamente después de procesar
+                              Future.delayed(
+                                const Duration(milliseconds: 50),
+                                () {
+                                  if (mounted) {
+                                    _textFieldFocusNode.requestFocus();
+                                  }
+                                },
+                              );
+                            },
                           ),
 
                           SizedBox(
